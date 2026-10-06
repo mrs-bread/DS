@@ -1,0 +1,74 @@
+#include <iostream>
+#include <random>
+#include <vector>
+#include <cmath>
+#include <iomanip>
+using namespace std;
+
+struct Stats {
+    double mean;
+    double stddev;
+};
+Stats computeStats(const vector<double>& v) {
+    double sum = 0;
+    for (double x : v) sum += x;
+    double mean = sum / v.size();
+
+    double sum2 = 0;
+    for (double x : v) sum2 += (x - mean) * (x - mean);
+    double var = sum2 / v.size();
+
+    Stats s;
+    s.mean = mean;
+    s.stddev = sqrt(var);
+    return s;
+}
+Stats simulate(double lambda, double mu, int totalArrivals, int warmup, bool cyclic) {
+    mt19937 rng(random_device{}());
+    exponential_distribution<double> arrivalDist(lambda);
+    exponential_distribution<double> serviceDist(mu / 3.0);
+    uniform_int_distribution<int> queueDist(0, 2);
+
+    vector<double> serverFreeTime(3, 0.0);
+    vector<double> waitTimes;
+    waitTimes.reserve(totalArrivals - warmup);
+
+    double t = 0.0;
+    int counter = 0;
+
+    for (int i = 0; i < totalArrivals; i++) {
+        t += arrivalDist(rng);
+        int q = cyclic ? (counter++ % 3) : queueDist(rng);
+        double start = max(t, serverFreeTime[q]);
+        double wait = start - t;
+        if (i >= warmup) waitTimes.push_back(wait);
+        serverFreeTime[q] = start + serviceDist(rng);
+    }
+    return computeStats(waitTimes);
+}
+
+int main() {
+    setlocale(LC_ALL, "RUS");
+    double lambda, mu;
+    int N;
+    cout << "lambda mu N: ";
+    cin >> lambda >> mu >> N;
+    if (lambda >= mu) {
+        cout << "rho >= 1, система нестабильна\n";
+        return 1;
+    }
+    int warmup = N / 10;
+    cout << fixed << setprecision(6);
+    Stats cyc = simulate(lambda, mu, N, warmup, true);
+    Stats rnd = simulate(lambda, mu, N, warmup, false);
+    cout << "rho = " << lambda / mu << "\n\n";
+    cout << "Циклический: mean=" << cyc.mean << " std=" << cyc.stddev << "\n";
+    cout << "Случайный:   mean=" << rnd.mean << " std=" << rnd.stddev << "\n\n";
+    if (cyc.mean < rnd.mean)
+        cout << "Лучше циклический: меньше среднее ожидание\n";
+    else if (rnd.mean < cyc.mean)
+        cout << "Лучше случайный: меньше среднее ожидание\n";
+    else
+        cout << "Среднее ожидание одинаковое\n";
+    return 0;
+}

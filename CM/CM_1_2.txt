@@ -1,0 +1,176 @@
+#include <iostream>
+#include <random>
+#include <iomanip>
+#include <sstream>
+#include <vector>
+#include <utility>
+#include <algorithm>
+#include <clocale>
+#include <chrono>
+#include <windows.h>
+#include <queue>
+#include <cfloat>
+#include <climits>
+using namespace std;
+
+class TimeGenerator {
+private:
+    mt19937 rng;
+    uniform_int_distribution<int> hourDist;
+    uniform_int_distribution<int> minuteDist;
+    uniform_int_distribution<int> secondDist;
+public:
+    TimeGenerator()
+        : rng(random_device{}()),
+        hourDist(0, 23),
+        minuteDist(0, 59),
+        secondDist(0, 59) {
+    }
+
+    string randomTime24() {
+        int hour = hourDist(rng);
+        int minute = minuteDist(rng);
+        int second = secondDist(rng);
+        ostringstream oss;
+        oss << setw(2) << setfill('0') << hour << ":"
+            << setw(2) << setfill('0') << minute << ":"
+            << setw(2) << setfill('0') << second;
+        return oss.str();
+    }
+};
+
+int String_To_Int(string t) {
+    int sec = 0;
+    size_t pos = t.find(":");
+    string hour = t.substr(0, pos);
+    sec += stoi(hour) * 3600;
+    t = t.substr(pos + 1, t.length());
+    pos = t.find(":");
+    string min = t.substr(0, pos);
+    sec += stoi(min) * 60;
+    t = t.substr(pos + 1, t.length());
+    sec += stoi(t);
+    return sec;
+}
+
+int Gen_1_5() {
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<> dist(1, 5);
+    int random = dist(gen);
+    return random;
+}
+
+void BubbleSort(vector<pair<int, string>>& mass) {
+    int listLength = mass.size();
+    while (listLength--) {
+        bool swapped = false;
+        for (int i = 0; i < listLength; i++) {
+            if (String_To_Int(mass[i].second) > String_To_Int(mass[i + 1].second)) {
+                swap(mass[i], mass[i + 1]);
+                swapped = true;
+            }
+        }
+        if (swapped == false)
+            break;
+    }
+}
+
+void printArray(const vector<pair<int, string>>& mass) {
+    for (const auto& x : mass) {
+        cout << x.first << " " << x.second << "\n";
+    }
+}
+
+void RunSimulation(const vector<pair<int, string>>& mass) {
+    mt19937 mt(random_device{}());
+    uniform_real_distribution<> sigma(600.0, 1800.0);
+
+    int K = 0;
+    queue<pair<int, string>> q;
+    double systemtime = 0.0;
+
+    size_t i = 0;
+    double T1 = String_To_Int(mass[0].second);
+    double T2 = DBL_MAX;
+
+    while (i < mass.size() || K == 1 || !q.empty()) {
+        bool is_arrival = false;
+
+        if (i < mass.size() && T1 <= T2) {
+            is_arrival = true;
+            systemtime = T1;
+        }
+        else {
+            is_arrival = false;
+            systemtime = T2;
+        }
+
+        cout << "t=" << systemtime << " K=" << K << " L=" << q.size();
+
+        if (is_arrival) {
+            int event_type = mass[i].first;
+            string event_time = mass[i].second;
+            cout << " +" << i + 1 << " тип=" << event_type << " (" << event_time << ")";
+
+            if (K == 0) {
+                K = 1;
+                T2 = systemtime + sigma(mt);
+                cout << " -> сервер, уход t=" << T2;
+            }
+            else {
+                q.push(make_pair(event_type, event_time));
+                cout << " -> очередь (" << q.size() << ")";
+            }
+
+            i++;
+            if (i < mass.size()) {
+                T1 = String_To_Int(mass[i].second);
+            }
+            else {
+                T1 = INT_MAX;
+            }
+        }
+        else {
+            cout << " -уход";
+
+            if (q.empty()) {
+                K = 0;
+                T2 = DBL_MAX;
+                cout << " -> сервер свободен";
+            }
+            else {
+                pair<int, string> next = q.front();
+                q.pop();
+                cout << " -> из очереди тип=" << next.first
+                    << " (" << next.second << "), осталось " << q.size();
+                T2 = systemtime + sigma(mt);
+            }
+        }
+        cout << "\n";
+    }
+}
+
+int main() {
+    setlocale(LC_ALL, "RUS");
+    int n = 30;
+    TimeGenerator generator;
+    vector<pair<int, string>> mass;
+
+    for (int i = 0; i < n; i++) {
+        mass.push_back(make_pair(Gen_1_5(), generator.randomTime24()));
+    }
+
+    cout << "Исходный массив:\n";
+    printArray(mass);
+
+    BubbleSort(mass);
+
+    cout << "\nОтсортированный массив:\n";
+    printArray(mass);
+
+    cout << "\nСимуляция:\n";
+    RunSimulation(mass);
+
+    return 0;
+}
